@@ -1,0 +1,26 @@
+# starts defining the services that will be used in the Docker Compose file.
+# Each service represents a container that will be run as part of the application.
+# In this case, we will define a service for our FastAPI application, which will be built from the Dockerfile in the current directory and will expose port 8001 to the host machine.
+services:
+# in Docker Compose, a service is a container that runs a specific application or process.
+# In this case, we are defining a service called "mock-server" which will be built using the Dockerfile in the current directory.
+  mock-server:
+    build: . # the "build" section specifies how to build the Docker image for this service. The "." indicates that the Dockerfile is located in the current directory.
+    # The "container_name" specifies the name of the container that will be created for this service (inside the terminal)
+    container_name: simple-mock-server
+    # the "ports" section maps port 8001 on the host machine to port 8001 in the container,
+    # allowing us to access the FastAPI application running inside the container from our host machine.
+    # the container is inside a v_invironment, so it has its own network and ports. By mapping the ports, we can access the application running inside the container from our host machine.
+    ports:
+      - "8001:8001"
+
+
+# in this state run the command "docker-compose up -d --build"
+#
+# up - tells Docker to build everything inside the yml file
+# -d (Detached) - runs the server in the background, allowing you to continue using the terminal for other commands.
+# --build - forces Docker to rebuild the image for the service even if there are no changes to the Dockerfile. This is useful when you want to ensure that you are using the latest version of the image, especially if you have made changes to the code or dependencies that are not reflected in the Dockerfile.
+#
+# after that check the browser "https://www.google.com/search?q=http://localhost:8001/api/cucm/stats"
+
+# https://www.google.com/search?q=http://localhost:8001/docs
