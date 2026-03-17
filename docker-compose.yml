@@ -1,26 +1,154 @@
-# starts defining the services that will be used in the Docker Compose file.
-# Each service represents a container that will be run as part of the application.
-# In this case, we will define a service for our FastAPI application, which will be built from the Dockerfile in the current directory and will expose port 8001 to the host machine.
 services:
-# in Docker Compose, a service is a container that runs a specific application or process.
-# In this case, we are defining a service called "mock-server" which will be built using the Dockerfile in the current directory.
+  postgres:
+    image: postgres:15-alpine
+    container_name: telephony-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: telephony_db
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=en_US.UTF-8"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - telephony-network
   mock-server:
-    build: . # the "build" section specifies how to build the Docker image for this service. The "." indicates that the Dockerfile is located in the current directory.
-    # The "container_name" specifies the name of the container that will be created for this service (inside the terminal)
+    build: .
     container_name: simple-mock-server
-    # the "ports" section maps port 8001 on the host machine to port 8001 in the container,
-    # allowing us to access the FastAPI application running inside the container from our host machine.
-    # the container is inside a v_invironment, so it has its own network and ports. By mapping the ports, we can access the application running inside the container from our host machine.
     ports:
       - "8001:8001"
+    networks:
+      - telephony-network
+  proxy-gateway:
+    build:
+      context: ./proxy-gateway
+    container_name: telephony-proxy-gateway
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - telephony-network
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  telephony-network:
+    driver: bridge
+
+# To make sure everything works like a charm, we can send a request directly to our Gateway to see if it saves it in PostgreSQL. Since it's a POST type path, we can't do it through the regular address bar in the browser. Instead, FastAPI provides us with the excellent Swagger interface.
+
+# Go to the following address in your browser: http://localhost:8000/docs
+
+# You'll see the green POST /api/metrics path there.
+
+# Click on it, then the "Try it out" button.
+
+# In the text box (Request body), enter some imaginary data, for example:
+
+# JSON
+# {
+# "server_type": "cucm",
+# "metric_name": "active_calls",
+# "value": 150.5
+# }
+# Click "Execute".
+
+# If everything is OK, you'll get a green response (code 200) below with the message: "Data successfully saved to the database!". This is a significant moment – ​​the code you wrote took information from the network and stored it permanently within the database.
 
 
-# in this state run the command "docker-compose up -d --build"
-#
-# up - tells Docker to build everything inside the yml file
-# -d (Detached) - runs the server in the background, allowing you to continue using the terminal for other commands.
-# --build - forces Docker to rebuild the image for the service even if there are no changes to the Dockerfile. This is useful when you want to ensure that you are using the latest version of the image, especially if you have made changes to the code or dependencies that are not reflected in the Dockerfile.
-#
-# after that check the browser "https://www.google.com/search?q=http://localhost:8001/api/cucm/stats"
 
-# https://www.google.com/search?q=http://localhost:8001/docs
+# # starts defining the services that will be used in the Docker Compose file.
+# # Each service represents a container that will be run as part of the application.
+# # In this case, we will define a service for our FastAPI application, which will be built from the Dockerfile in the current directory and will expose port 8001 to the host machine.
+# services:
+# # in Docker Compose, a service is a container that runs a specific application or process.
+#   postgres:
+#     image: postgres:15-alpine # this service will use the latest version of the official PostgreSQL image from Docker Hub. This means that when we run this service, Docker will pull the latest PostgreSQL image and create a container based on it.
+#     container_name: telephony-postgres
+
+#     restart: unless-stopped # start the Docker if it craches
+
+#     #Enviroment variables are the way to pass conf settings to the cont from outside.
+#     environment:
+#       POSTGRES_USER: postgres # this sets the username for the PostgreSQL database to "postgres".
+#       POSTGRES_PASSWORD: password # this sets the password for the PostgreSQL database to "password".
+#       POSTGRES_DB: telephony_db
+#       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=en_US.UTF-8"
+    
+#     volumes:
+#       - postgres_data:/var/lib/postgresql/data # this creates a named volume called "postgres_data" and mounts it to the "/var/lib/postgresql/data" directory inside the container. This allows the PostgreSQL data to persist even if the container is stopped or removed.
+#       - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro # this mounts the "init.sql" file from the local "postgres" directory to the "/docker-entrypoint-initdb.d/init.sql" path inside the container. This file will be executed when the PostgreSQL container is initialized, allowing us to set up the database schema and initial data.
+
+#     ports:
+#       - "5432:5432" # this maps port 5432 on the host machine to port 5432 in the container, allowing us to access the PostgreSQL database running inside the container from our host machine.
+
+#     healthcheck:
+#       test: ["CMD-SHELL", "pg_isready -U postgres"] # this defines a health check for the PostgreSQL service. It uses the "pg_isready" command to check if the PostgreSQL server is ready to accept connections. If the command returns a successful response, the container is considered healthy. If it fails, the container is considered unhealthy, and Docker can take appropriate actions based on this status. 
+#       interval: 10s # this specifies that the health check should be performed every 10 seconds.
+#       timeout: 5s # this specifies that the health check should time out after 5
+#       retries: 5 # this specifies that the health check should be retried up to 5 times before considering the container unhealthy.
+#       start_period: 10s # this specifies that there should be a 30-second grace period after the container starts before the health check is performed. This allows the PostgreSQL server some time to initialize and become ready before the health checks begin.
+#     networks:
+#       - telephony-network
+
+# # In this case, we are defining a service called "mock-server" which will be built using the Dockerfile in the current directory.
+#   mock-server:
+#     build: . # the "build" section specifies how to build the Docker image for this service. The "." indicates that the Dockerfile is located in the current directory.
+#     # The "container_name" specifies the name of the container that will be created for this service (inside the terminal)
+#     container_name: simple-mock-server
+#     # the "ports" section maps port 8001 on the host machine to port 8001 in the container,
+#     # allowing us to access the FastAPI application running inside the container from our host machine.
+#     # the container is inside a v_invironment, so it has its own network and ports. By mapping the ports, we can access the application running inside the container from our host machine.
+#     ports:
+#       - "8001:8001"
+#     networks:
+#       - telephony-network
+
+#   proxy-gateway:
+#     build:
+#       context: ./proxy-gateway # this specifies the build context for the "proxy-gateway" service. The build context is the directory that contains the Dockerfile and any other files needed to build the Docker image for this service. In this case, it points to the "proxy-gateway" directory, which means that Docker will look for a Dockerfile in that directory and use it to build the image for the "proxy-gateway" service.
+#     container_name: telephony-proxy-gateway
+#     restart: unless-stopped
+#     ports:
+#       - "8000:8000" # this maps port 8000 on the host machine to port 8000 in the container, allowing us to access the FastAPI application running inside the container from our host machine.
+#     depends_on:
+#       postgres:
+#         condition: service_healthy # this specifies that the "proxy-gateway" service depends on the "postgres" service being healthy. Docker will wait until the "postgres" service is considered healthy (based on the health check defined for that service) before starting the "proxy-gateway" service. This ensures that the database is ready and available before the application tries to connect to it.
+#     networks:
+#       - telephony-network
+
+#   volumes:
+#     # this defines a named volume called "postgres_data". This volume will be used to persist the data of the PostgreSQL database, ensuring that it is not lost when the container is stopped or removed.
+#     postgres_data:
+#       driver: local
+  
+#   networks:
+#     # this defines a custom network called "telephony-network". This network will be used to connect the services defined in this Docker Compose file, allowing them to communicate with each other.
+#     telephony-network:
+#       driver: bridge
+    
+
+
+# # in this state run the command "docker-compose up -d --build"
+# #
+# # up - tells Docker to build everything inside the yml file
+# # -d (Detached) - runs the server in the background, allowing you to continue using the terminal for other commands.
+# # --build - forces Docker to rebuild the image for the service even if there are no changes to the Dockerfile. This is useful when you want to ensure that you are using the latest version of the image, especially if you have made changes to the code or dependencies that are not reflected in the Dockerfile.
+# #
+# # after that check the browser "https://www.google.com/search?q=http://localhost:8001/api/cucm/stats"
+
+# # https://www.google.com/search?q=http://localhost:8001/docs
